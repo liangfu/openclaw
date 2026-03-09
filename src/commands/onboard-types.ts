@@ -50,6 +50,7 @@ export type AuthChoice =
   | "byteplus-api-key"
   | "qianfan-api-key"
   | "custom-api-key"
+  | "bedrock"
   | "skip";
 export type AuthChoiceGroupId =
   | "openai"
@@ -78,6 +79,7 @@ export type AuthChoiceGroupId =
   | "xai"
   | "volcengine"
   | "byteplus"
+  | "bedrock"
   | "custom";
 export type GatewayAuthChoice = "token" | "password";
 export type ResetScope = "config" | "config+creds+sessions" | "full";

@@ -1,4 +1,5 @@
 import { upsertAuthProfile } from "../../../agents/auth-profiles.js";
+import { resolveAwsSdkEnvVarName } from "../../../agents/model-auth.js";
 import { normalizeProviderId } from "../../../agents/model-selection.js";
 import { parseDurationMs } from "../../../cli/parse-duration.js";
 import type { OpenClawConfig } from "../../../config/config.js";
@@ -993,6 +994,36 @@ export async function applyNonInteractiveAuthChoice(params: {
       runtime.exit(1);
       return null;
     }
+  }
+
+  if (authChoice === "bedrock") {
+    const awsEnvVar = resolveAwsSdkEnvVarName();
+    if (!awsEnvVar) {
+      runtime.error(
+        [
+          "No AWS credentials found for Bedrock authentication.",
+          "Set AWS_BEARER_TOKEN_BEDROCK, AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, or AWS_PROFILE.",
+        ].join("\n"),
+      );
+      runtime.exit(1);
+      return null;
+    }
+    // Enable bedrock discovery (the implicit provider will be auto-configured)
+    nextConfig = {
+      ...nextConfig,
+      models: {
+        ...nextConfig.models,
+        bedrockDiscovery: {
+          ...nextConfig.models?.bedrockDiscovery,
+          enabled: true,
+        },
+      },
+    };
+    // Set a default model for bedrock
+    return applyPrimaryModel(
+      nextConfig,
+      "amazon-bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0",
+    );
   }
 
   if (

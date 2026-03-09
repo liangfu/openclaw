@@ -90,6 +90,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["byteplus-api-key"],
   },
   {
+    value: "bedrock",
+    label: "Amazon Bedrock",
+    hint: "AWS SDK (env credentials)",
+    choices: ["bedrock"],
+  },
+  {
     value: "openrouter",
     label: "OpenRouter",
     hint: "API key",
@@ -298,6 +304,11 @@ const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
     hint: "Official fast tier",
   },
   { value: "custom-api-key", label: "Custom Provider" },
+  {
+    value: "bedrock",
+    label: "Amazon Bedrock",
+    hint: "Uses AWS SDK credentials (env vars or profile)",
+  },
 ];
 
 export function formatAuthChoiceChoicesForCli(params?: {
