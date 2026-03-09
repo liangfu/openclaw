@@ -32,6 +32,7 @@ type SharedServiceEnvironmentFields = {
   tmpDir: string;
   minimalPath: string | undefined;
   proxyEnv: Record<string, string | undefined>;
+  awsEnv: Record<string, string | undefined>;
   nodeCaCerts: string | undefined;
   nodeUseSystemCa: string | undefined;
 };
@@ -47,11 +48,43 @@ const SERVICE_PROXY_ENV_KEYS = [
   "all_proxy",
 ] as const;
 
+// AWS credential environment variables forwarded to daemon services.
+// These allow Bedrock and other AWS services to authenticate properly.
+const SERVICE_AWS_ENV_KEYS = [
+  "AWS_BEARER_TOKEN_BEDROCK",
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+  "AWS_PROFILE",
+  "AWS_REGION",
+  "AWS_DEFAULT_REGION",
+  "AWS_CONFIG_FILE",
+  "AWS_SHARED_CREDENTIALS_FILE",
+] as const;
+
 function readServiceProxyEnvironment(
   env: Record<string, string | undefined>,
 ): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = {};
   for (const key of SERVICE_PROXY_ENV_KEYS) {
+    const value = env[key];
+    if (typeof value !== "string") {
+      continue;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      continue;
+    }
+    out[key] = trimmed;
+  }
+  return out;
+}
+
+function readServiceAwsEnvironment(
+  env: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const key of SERVICE_AWS_ENV_KEYS) {
     const value = env[key];
     if (typeof value !== "string") {
       continue;
@@ -299,6 +332,7 @@ function buildCommonServiceEnvironment(
     HOME: env.HOME,
     TMPDIR: sharedEnv.tmpDir,
     ...sharedEnv.proxyEnv,
+    ...sharedEnv.awsEnv,
     NODE_EXTRA_CA_CERTS: sharedEnv.nodeCaCerts,
     NODE_USE_SYSTEM_CA: sharedEnv.nodeUseSystemCa,
     OPENCLAW_STATE_DIR: sharedEnv.stateDir,
@@ -319,6 +353,7 @@ function resolveSharedServiceEnvironmentFields(
   // Keep a usable temp directory for supervised services even when the host env omits TMPDIR.
   const tmpDir = env.TMPDIR?.trim() || os.tmpdir();
   const proxyEnv = readServiceProxyEnvironment(env);
+  const awsEnv = readServiceAwsEnvironment(env);
   // On macOS, launchd services don't inherit the shell environment, so Node's undici/fetch
   // cannot locate the system CA bundle. Default to /etc/ssl/cert.pem so TLS verification
   // works correctly when running as a LaunchAgent without extra user configuration.
@@ -333,6 +368,7 @@ function resolveSharedServiceEnvironmentFields(
     // freezing the install-time snapshot into gateway.cmd/node-host.cmd.
     minimalPath: platform === "win32" ? undefined : buildMinimalServicePath({ env, platform }),
     proxyEnv,
+    awsEnv,
     nodeCaCerts,
     nodeUseSystemCa,
   };

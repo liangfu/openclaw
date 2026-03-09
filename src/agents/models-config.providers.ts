@@ -801,6 +801,21 @@ export async function resolveImplicitBedrockProvider(params: {
   const discoveryConfig = params.config?.models?.bedrockDiscovery;
   const enabled = discoveryConfig?.enabled;
   const hasAwsCreds = resolveAwsSdkEnvVarName(env) !== undefined;
+  
+  // Check for bearer token first - this takes precedence over discovery settings
+  const bearerToken = env.AWS_BEARER_TOKEN_BEDROCK?.trim();
+  if (bearerToken) {
+    // When AWS_BEARER_TOKEN_BEDROCK is available, skip discovery and return a minimal provider
+    // The pi-ai library will handle bearer token authentication directly
+    const region = discoveryConfig?.region ?? env.AWS_REGION ?? env.AWS_DEFAULT_REGION ?? "us-east-1";
+    return {
+      baseUrl: `https://bedrock-runtime.${region}.amazonaws.com`,
+      api: "bedrock-converse-stream",
+      auth: "aws-sdk",
+      models: [], // Let pi-ai handle the model list
+    } satisfies ProviderConfig;
+  }
+  
   if (enabled === false) {
     return null;
   }
