@@ -32,6 +32,11 @@ const PROVIDER_CAPABILITIES: Record<string, Partial<ProviderCapabilities>> = {
   },
   "amazon-bedrock": {
     providerFamily: "anthropic",
+    // Bedrock's message conversion runs `sanitizeSurrogates()` on thinking block text,
+    // which can modify the content. Claude API rejects requests where thinking blocks
+    // in the "latest assistant message" have been modified. By dropping thinking blocks
+    // from historical messages, we avoid this validation error. See #thinking-block-error.
+    dropThinkingBlockModelHints: ["claude"],
   },
   // kimi-coding natively supports Anthropic tool framing (input_schema);
   // converting to OpenAI format causes XML text fallback instead of tool_use blocks.

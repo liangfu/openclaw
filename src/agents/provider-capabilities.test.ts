@@ -82,4 +82,28 @@ describe("resolveProviderCapabilities", () => {
       }),
     ).toBe(true);
   });
+
+  it("drops thinking blocks for Bedrock Claude models to avoid sanitization errors", () => {
+    // Bedrock's message conversion sanitizes thinking text, which can modify content.
+    // Claude API rejects requests where thinking blocks have been modified.
+    expect(
+      shouldDropThinkingBlocksForModel({
+        provider: "amazon-bedrock",
+        modelId: "us.anthropic.claude-opus-4-5-20251101-v1:0",
+      }),
+    ).toBe(true);
+    expect(
+      shouldDropThinkingBlocksForModel({
+        provider: "amazon-bedrock",
+        modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      }),
+    ).toBe(true);
+    // Non-Claude Bedrock models should not drop thinking blocks
+    expect(
+      shouldDropThinkingBlocksForModel({
+        provider: "amazon-bedrock",
+        modelId: "meta.llama3-8b-instruct-v1:0",
+      }),
+    ).toBe(false);
+  });
 });

@@ -13,7 +13,12 @@ export function isAssistantMessageWithContent(message: AgentMessage): message is
 }
 
 /**
- * Strip all `type: "thinking"` content blocks from assistant messages.
+ * Strip all `type: "thinking"` content blocks from assistant messages,
+ * EXCEPT for the latest assistant message.
+ *
+ * Claude API requires that thinking/redacted_thinking blocks in the latest
+ * assistant message be preserved exactly as returned. Modifying them causes:
+ * "thinking or redacted_thinking blocks in the latest assistant message cannot be modified"
  *
  * If an assistant message becomes empty after stripping, it is replaced with
  * a synthetic `{ type: "text", text: "" }` block to preserve turn structure
@@ -23,9 +28,26 @@ export function isAssistantMessageWithContent(message: AgentMessage): message is
  * use reference equality to skip downstream work).
  */
 export function dropThinkingBlocks(messages: AgentMessage[]): AgentMessage[] {
+  // Find index of the last assistant message - we must NOT modify this one
+  // because Claude API requires thinking blocks in the latest assistant turn
+  // to be preserved exactly.
+  let lastAssistantIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (isAssistantMessageWithContent(messages[i])) {
+      lastAssistantIdx = i;
+      break;
+    }
+  }
+
   let touched = false;
   const out: AgentMessage[] = [];
-  for (const msg of messages) {
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    // Never strip thinking blocks from the latest assistant message
+    if (i === lastAssistantIdx) {
+      out.push(msg);
+      continue;
+    }
     if (!isAssistantMessageWithContent(msg)) {
       out.push(msg);
       continue;
