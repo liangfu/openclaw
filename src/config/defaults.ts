@@ -33,6 +33,49 @@ const DEFAULT_MODEL_ALIASES: Readonly<Record<string, string>> = {
   "gemini-flash-lite": "google/gemini-3.1-flash-lite-preview",
 };
 
+/**
+ * Bedrock model aliases for cross-region inference models.
+ * These use the "us." prefix for cross-region support.
+ */
+export const DEFAULT_BEDROCK_MODEL_ALIASES: Readonly<Record<string, string>> = {
+  // Claude Opus 4.8 (latest)
+  opus: "us.anthropic.claude-opus-4-8",
+  opus48: "us.anthropic.claude-opus-4-8",
+  // Claude Opus 4.7
+  opus47: "us.anthropic.claude-opus-4-7",
+  // Claude Opus 4.6
+  opus46: "us.anthropic.claude-opus-4-6-v1",
+  // Claude Opus 4.5
+  opus45: "us.anthropic.claude-opus-4-5-20251101-v1:0",
+  // Claude Sonnet 4.6 (latest)
+  sonnet: "us.anthropic.claude-sonnet-4-6",
+  sonnet46: "us.anthropic.claude-sonnet-4-6",
+  // Claude Sonnet 4.5
+  sonnet45: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+  // Claude Sonnet 4
+  sonnet4: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+};
+/**
+ * Resolve a Bedrock model alias to its full model ID.
+ */
+export function resolveBedrockModelAlias(alias: string): string | undefined {
+  const aliasKey = alias.trim().toLowerCase();
+  return DEFAULT_BEDROCK_MODEL_ALIASES[aliasKey];
+}
+
+/**
+ * Check if a provider is Amazon Bedrock.
+ */
+export function isBedrockProvider(provider: string): boolean {
+  const normalized = provider.trim().toLowerCase();
+  return (
+    normalized === "amazon-bedrock" ||
+    normalized === "bedrock" ||
+    normalized === "aws-bedrock"
+  );
+}
+
+
 const DEFAULT_MODEL_COST: ModelDefinitionConfig["cost"] = {
   input: 0,
   output: 0,
