@@ -54,6 +54,22 @@ export const DEFAULT_BEDROCK_MODEL_ALIASES: Readonly<Record<string, string>> = {
   sonnet45: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
   // Claude Sonnet 4
   sonnet4: "us.anthropic.claude-sonnet-4-20250514-v1:0",
+
+  // OpenAI GPT-6 series (Bedrock inference profiles)
+  // Astra & 6.1 Sol are global-only profiles; Sol & Luna have us. cross-region profiles.
+  gpt: "us.openai.gpt-6-sol",
+  "gpt-6": "us.openai.gpt-6-sol",
+  "gpt-6-astra": "global.openai.gpt-6-astra",
+  "gpt-6.1-sol": "global.openai.gpt-6.1-sol",
+  "gpt-6-sol": "us.openai.gpt-6-sol",
+  "gpt-6-luna": "us.openai.gpt-6-luna",
+  // OpenAI GPT-5.6 series
+  "gpt-5.6-sol": "us.openai.gpt-5.6-sol",
+  "gpt-5.6-terra": "us.openai.gpt-5.6-terra",
+  "gpt-5.6-luna": "us.openai.gpt-5.6-luna",
+  // OpenAI GPT-5.x
+  "gpt-5.5": "us.openai.gpt-5.5",
+  "gpt-5.4": "us.openai.gpt-5.4",
 };
 /**
  * Resolve a Bedrock model alias to its full model ID.

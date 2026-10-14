@@ -2,6 +2,8 @@ import {
   BedrockClient,
   ListFoundationModelsCommand,
   type ListFoundationModelsCommandOutput,
+  ListInferenceProfilesCommand,
+  type ListInferenceProfilesCommandOutput,
 } from "@aws-sdk/client-bedrock";
 import type { BedrockDiscoveryConfig, ModelDefinitionConfig } from "../config/types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -19,6 +21,10 @@ const DEFAULT_COST = {
 };
 
 type BedrockModelSummary = NonNullable<ListFoundationModelsCommandOutput["modelSummaries"]>[number];
+
+type BedrockInferenceProfileSummary = NonNullable<
+  ListInferenceProfilesCommandOutput["inferenceProfileSummaries"]
+>[number];
 
 type BedrockDiscoveryCacheEntry = {
   expiresAt: number;
@@ -145,6 +151,76 @@ export function resetBedrockDiscoveryCacheForTest(): void {
   hasLoggedBedrockError = false;
 }
 
+function profileProviderName(id: string): string | undefined {
+  // Strip cross-region routing prefix (us. / eu. / apac. / global. ...) then take provider segment.
+  const segments = id.split(".");
+  if (segments.length >= 3) {
+    return segments[1];
+  }
+  if (segments.length === 2) {
+    return segments[0];
+  }
+  return undefined;
+}
+
+function matchesProfileProviderFilter(id: string, filter: string[]): boolean {
+  if (filter.length === 0) {
+    return true;
+  }
+  const provider = profileProviderName(id)?.trim().toLowerCase();
+  return provider ? filter.includes(provider) : false;
+}
+
+function inferProfileReasoning(id: string, name: string): boolean {
+  const haystack = `${id} ${name}`.toLowerCase();
+  return (
+    haystack.includes("reasoning") ||
+    haystack.includes("thinking") ||
+    haystack.includes("gpt-6") ||
+    haystack.includes("gpt-5.6")
+  );
+}
+
+function inferProfileInput(id: string, name: string): Array<"text" | "image"> {
+  const haystack = `${id} ${name}`.toLowerCase();
+  // OpenAI GPT-6 series on Bedrock accept text + image.
+  if (haystack.includes("openai") && haystack.includes("gpt-6")) {
+    return ["text", "image"];
+  }
+  return ["text"];
+}
+
+function shouldIncludeProfile(
+  summary: BedrockInferenceProfileSummary,
+  filter: string[],
+): boolean {
+  const id = summary.inferenceProfileId?.trim();
+  if (!id) {
+    return false;
+  }
+  if (typeof summary.status === "string" && summary.status.toUpperCase() !== "ACTIVE") {
+    return false;
+  }
+  return matchesProfileProviderFilter(id, filter);
+}
+
+function profileToModelDefinition(
+  summary: BedrockInferenceProfileSummary,
+  defaults: { contextWindow: number; maxTokens: number },
+): ModelDefinitionConfig {
+  const id = summary.inferenceProfileId?.trim() ?? "";
+  const name = summary.inferenceProfileName?.trim() || id;
+  return {
+    id,
+    name,
+    reasoning: inferProfileReasoning(id, name),
+    input: inferProfileInput(id, name),
+    cost: DEFAULT_COST,
+    contextWindow: defaults.contextWindow,
+    maxTokens: defaults.maxTokens,
+  };
+}
+
 export async function discoverBedrockModels(params: {
   region: string;
   config?: BedrockDiscoveryConfig;
@@ -181,20 +257,54 @@ export async function discoverBedrockModels(params: {
   const client = clientFactory(params.region);
 
   const discoveryPromise = (async () => {
-    const response = await client.send(new ListFoundationModelsCommand({}));
-    const discovered: ModelDefinitionConfig[] = [];
-    for (const summary of response.modelSummaries ?? []) {
+    const byId = new Map<string, ModelDefinitionConfig>();
+
+    // Foundation models (base IDs). Many newer models are INFERENCE_PROFILE-only and
+    // are not directly invocable, but we keep the existing gating for backward compat.
+    const foundationResponse = await client.send(new ListFoundationModelsCommand({}));
+    for (const summary of foundationResponse.modelSummaries ?? []) {
       if (!shouldIncludeSummary(summary, providerFilter)) {
         continue;
       }
-      discovered.push(
-        toModelDefinition(summary, {
-          contextWindow: defaultContextWindow,
-          maxTokens: defaultMaxTokens,
-        }),
-      );
+      const def = toModelDefinition(summary, {
+        contextWindow: defaultContextWindow,
+        maxTokens: defaultMaxTokens,
+      });
+      byId.set(def.id, def);
     }
-    return discovered.toSorted((a, b) => a.name.localeCompare(b.name));
+
+    // Cross-region inference profiles (us.* / global.* etc). These are the invocable
+    // IDs for INFERENCE_PROFILE-only models (e.g. OpenAI GPT-6 series). Prefer the
+    // profile definition when an ID collides (it is the invocable one).
+    try {
+      let nextToken: string | undefined;
+      do {
+        const profileResponse: ListInferenceProfilesCommandOutput = await client.send(
+          new ListInferenceProfilesCommand({
+            typeEquals: "SYSTEM_DEFINED",
+            ...(nextToken ? { nextToken } : {}),
+          }),
+        );
+        for (const summary of profileResponse.inferenceProfileSummaries ?? []) {
+          if (!shouldIncludeProfile(summary, providerFilter)) {
+            continue;
+          }
+          const def = profileToModelDefinition(summary, {
+            contextWindow: defaultContextWindow,
+            maxTokens: defaultMaxTokens,
+          });
+          byId.set(def.id, def);
+        }
+        nextToken = profileResponse.nextToken;
+      } while (nextToken);
+    } catch (error) {
+      if (!hasLoggedBedrockError) {
+        hasLoggedBedrockError = true;
+        log.warn(`Failed to list inference profiles: ${String(error)}`);
+      }
+    }
+
+    return Array.from(byId.values()).toSorted((a, b) => a.name.localeCompare(b.name));
   })();
 
   if (refreshIntervalSeconds > 0) {
