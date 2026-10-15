@@ -33,6 +33,6 @@ node scripts/patch-mantle-thinking.mjs
 pnpm build
 
 # 5) Restart + verify.
-if [ -x "$CLI" ]; then OC="$CLI"; else OC="openclaw"; fi
-"$OC" gateway restart
-"$OC" gateway status | head -5
+# if [ -x "$CLI" ]; then OC="$CLI"; else OC="openclaw"; fi
+# "$OC" gateway restart
+# "$OC" gateway status | head -5
